@@ -87,3 +87,65 @@ CREATE TABLE audit_log (
 );
 
 COMMENT ON COLUMN audit_log.user_id IS 'Пользователь, совершивший изменение';
+
+-- Функция обновления updated_at
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW IS DISTINCT FROM OLD THEN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Функция аудита
+CREATE OR REPLACE FUNCTION log_audit()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        INSERT INTO audit_log(table_name, operation, new_data, user_id)
+        VALUES (TG_TABLE_NAME, TG_OP, to_jsonb(NEW), NEW.updated_by);
+    ELSIF TG_OP = 'UPDATE' THEN
+        INSERT INTO audit_log(table_name, operation, old_data, new_data, user_id)
+        VALUES (TG_TABLE_NAME, TG_OP, to_jsonb(OLD), to_jsonb(NEW), NEW.updated_by);
+    ELSIF TG_OP = 'DELETE' THEN
+        INSERT INTO audit_log(table_name, operation, old_data, user_id)
+        VALUES (TG_TABLE_NAME, TG_OP, to_jsonb(OLD), OLD.updated_by);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Триггеры обновления updated_at
+CREATE TRIGGER trg_users_updated
+BEFORE UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_receptions_updated
+BEFORE UPDATE ON receptions
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_products_updated
+BEFORE UPDATE ON products
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
+-- Триггеры аудита
+CREATE TRIGGER trg_users_audit
+AFTER INSERT OR UPDATE OR DELETE ON users
+FOR EACH ROW EXECUTE FUNCTION log_audit();
+
+CREATE TRIGGER trg_pvz_audit
+AFTER INSERT OR UPDATE OR DELETE ON pvz
+FOR EACH ROW EXECUTE FUNCTION log_audit();
+
+CREATE TRIGGER trg_receptions_audit
+AFTER INSERT OR UPDATE OR DELETE ON receptions
+FOR EACH ROW EXECUTE FUNCTION log_audit();
+
+CREATE TRIGGER trg_products_audit
+AFTER INSERT OR UPDATE OR DELETE ON products
+FOR EACH ROW EXECUTE FUNCTION log_audit();
