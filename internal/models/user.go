@@ -17,3 +17,13 @@ type User struct {
 	CreatedAt    time.Time `json:"-"`
 	UpdatedAt    time.Time `json:"-"`
 }
+
+type UserRequest struct {
+	Email    string   `json:"email"`
+	Password string   `json:"password"`
+	Role     UserRole `json:"role"`
+}
+
+type TokenResponse struct {
+	Token string `json:"token"`
+}
